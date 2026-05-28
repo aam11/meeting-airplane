@@ -29,6 +29,9 @@ swiftc -O \
     -o "${EXEC_DIR}/${APP_NAME}" \
     Sources/*.swift
 
+# Copy art assets into the bundle's Resources directory.
+cp art/*.png "${RES_DIR}/"
+
 # Install the Info.plist that tells macOS this is a real app bundle with
 # calendar usage permission.
 cp Info.plist "${APP_DIR}/Contents/Info.plist"

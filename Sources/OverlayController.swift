@@ -21,10 +21,6 @@ final class OverlayController {
         self.config = config
     }
 
-    // Soothing pastel palette.
-    private let bannerFill = NSColor(calibratedRed: 0.78, green: 0.88, blue: 0.96, alpha: 0.95) // pastel sky blue
-    private let bannerTextColor = NSColor(calibratedRed: 0.12, green: 0.20, blue: 0.36, alpha: 1.0) // soft navy
-
     func show(title: String, startDate: Date? = nil, minutesUntil: Int, completion: (() -> Void)? = nil) {
         NSLog("[MeetingAirplane] show: title=\(title) minutesUntil=\(minutesUntil)")
 
@@ -45,8 +41,12 @@ final class OverlayController {
         window = nil
 
         let screenFrame = screen.frame
-        let windowWidth: CGFloat = 760
-        let windowHeight: CGFloat = 130
+
+        // Build the content view, measure it, then size the window to fit.
+        let content = makeContentView(title: title, startDate: startDate, minutesUntil: minutesUntil)
+        let contentSize = content.fittingSize
+        let windowHeight = contentSize.height
+        let windowWidth = contentSize.width
         let yTop = screenFrame.maxY - windowHeight - 40
 
         let startFrame = NSRect(
@@ -65,83 +65,18 @@ final class OverlayController {
         w.isOpaque = false
         w.backgroundColor = .clear
         w.hasShadow = false
-        // Above-everything level. Higher than .screenSaver so it survives
-        // Mission Control/screensaver transitions. Fall back to .screenSaver
-        // if a future macOS suppresses this.
         w.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)) + 1)
         w.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        // Click-through: mouse events fall to whatever's underneath.
         w.ignoresMouseEvents = true
         w.isReleasedWhenClosed = false
-
-        // Content: transparent NSView containing plane glyph + rounded banner.
-        let content = NSView(frame: NSRect(origin: .zero, size: startFrame.size))
-        content.wantsLayer = true
-        content.layer?.backgroundColor = NSColor.clear.cgColor
-
-        // --- Plane glyph (left column) ---
-        let planeColumnWidth: CGFloat = 130
-        let planeLabel = NSTextField(labelWithString: "\u{2708}\u{FE0F}")
-        planeLabel.font = NSFont.systemFont(ofSize: 90)
-        planeLabel.alignment = .center
-        planeLabel.backgroundColor = .clear
-        planeLabel.drawsBackground = false
-        planeLabel.isBezeled = false
-        planeLabel.isEditable = false
-        planeLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        // --- Rounded pastel banner (right side) ---
-        let banner = NSView()
-        banner.wantsLayer = true
-        banner.layer?.backgroundColor = bannerFill.cgColor
-        banner.layer?.cornerRadius = 18
-        banner.layer?.shadowColor = NSColor.black.cgColor
-        banner.layer?.shadowOpacity = 0.18
-        banner.layer?.shadowOffset = CGSize(width: 0, height: -2)
-        banner.layer?.shadowRadius = 6
-        banner.layer?.masksToBounds = false
-        banner.translatesAutoresizingMaskIntoConstraints = false
-
-        let textLabel = NSTextField(labelWithString: bannerText(title: title, startDate: startDate, minutesUntil: minutesUntil))
-        textLabel.font = NSFont.systemFont(ofSize: 24, weight: .semibold)
-        textLabel.textColor = bannerTextColor
-        textLabel.alignment = .center
-        textLabel.backgroundColor = .clear
-        textLabel.drawsBackground = false
-        textLabel.isBezeled = false
-        textLabel.isEditable = false
-        textLabel.lineBreakMode = .byTruncatingTail
-        textLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        banner.addSubview(textLabel)
-        content.addSubview(planeLabel)
-        content.addSubview(banner)
-
-        NSLayoutConstraint.activate([
-            // Plane on the right (leading the flight), vertically centered.
-            planeLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            planeLabel.widthAnchor.constraint(equalToConstant: planeColumnWidth),
-            planeLabel.centerYAnchor.constraint(equalTo: content.centerYAnchor),
-
-            // Banner trails behind on the left, with vertical padding.
-            banner.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
-            banner.trailingAnchor.constraint(equalTo: planeLabel.leadingAnchor, constant: -8),
-            banner.topAnchor.constraint(equalTo: content.topAnchor, constant: 28),
-            banner.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -28),
-
-            // Text centered inside banner, with horizontal padding.
-            textLabel.centerYAnchor.constraint(equalTo: banner.centerYAnchor),
-            textLabel.leadingAnchor.constraint(equalTo: banner.leadingAnchor, constant: 24),
-            textLabel.trailingAnchor.constraint(equalTo: banner.trailingAnchor, constant: -24),
-        ])
-
         w.contentView = content
+
         w.orderFrontRegardless()
         NSLog("[MeetingAirplane] window ordered front at \(startFrame)")
 
         window = w
 
-        // Manual 60Hz slide + fade (NSWindow animator ignores duration on macOS 26).
+        // Manual 60Hz slide + fade.
         let startX = startFrame.origin.x
         let endX = screenFrame.maxX
         let duration = config.slideDuration
@@ -158,7 +93,6 @@ final class OverlayController {
             let x = startX + (endX - startX) * CGFloat(progress)
             w.setFrameOrigin(NSPoint(x: x, y: yTop))
 
-            // Fade alpha 1.0 → 0.0 across the final `fadeDuration` seconds.
             if progress >= fadeStart {
                 let fadeProgress = (progress - fadeStart) / max(0.0001, 1.0 - fadeStart)
                 w.alphaValue = CGFloat(max(0.0, 1.0 - fadeProgress))
@@ -173,6 +107,89 @@ final class OverlayController {
                 completion?()
             }
         }
+    }
+
+    /// Builds a content view: banner.png-backed label on the left, plane.png
+    /// NSImageView on the right. Sized via Auto Layout; caller asks for
+    /// `fittingSize` to size the window.
+    private func makeContentView(title: String, startDate: Date?, minutesUntil: Int) -> NSView {
+        let planeSize: CGFloat = 220
+        let bannerVerticalInset: CGFloat = 35      // top + bottom padding inside the banner PNG (visual rope/ribbon shape)
+        let bannerHorizontalInset: CGFloat = 50    // left + right padding inside the banner PNG
+        let textHorizontalPadding: CGFloat = 50
+        let textVerticalPadding: CGFloat = 22
+        let stackOverlap: CGFloat = -10            // negative spacing — plane overlaps banner so rope tucks behind
+
+        let bannerImage = NSImage(named: "banner")
+        let planeImage = NSImage(named: "plane")
+
+        // Comic Sans MS, fallback to bold system font if absent.
+        let font = NSFont(name: "Comic Sans MS", size: 28)
+            ?? NSFont.systemFont(ofSize: 28, weight: .bold)
+
+        let label = NSTextField(labelWithString: bannerText(title: title, startDate: startDate, minutesUntil: minutesUntil))
+        label.font = font
+        label.textColor = .white
+        label.alignment = .center
+        label.backgroundColor = .clear
+        label.drawsBackground = false
+        label.isBezeled = false
+        label.isEditable = false
+        label.lineBreakMode = .byTruncatingTail
+        label.maximumNumberOfLines = 1
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        // Banner container — uses the banner PNG as its layer contents so it
+        // stretches behind the label.
+        let banner = NSView()
+        banner.wantsLayer = true
+        banner.layer?.contentsGravity = .resize
+        if let img = bannerImage {
+            banner.layer?.contents = img
+        } else {
+            // Asset missing: visible regression so we don't ship invisibly.
+            banner.layer?.backgroundColor = NSColor(calibratedRed: 0.95, green: 0.55, blue: 0.65, alpha: 1.0).cgColor
+        }
+        banner.translatesAutoresizingMaskIntoConstraints = false
+        banner.addSubview(label)
+
+        let plane = NSImageView()
+        plane.image = planeImage
+        plane.imageScaling = .scaleProportionallyUpOrDown
+        plane.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.clear.cgColor
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(banner)
+        container.addSubview(plane)
+
+        NSLayoutConstraint.activate([
+            // Plane on the right, fixed size, vertically centered.
+            plane.widthAnchor.constraint(equalToConstant: planeSize),
+            plane.heightAnchor.constraint(equalToConstant: planeSize),
+            plane.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            plane.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+
+            // Banner on the left, hugging the plane with negative overlap so
+            // the rope tucks behind it.
+            banner.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            banner.trailingAnchor.constraint(equalTo: plane.leadingAnchor, constant: stackOverlap),
+            banner.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+
+            // Label inside banner, padded.
+            label.leadingAnchor.constraint(equalTo: banner.leadingAnchor, constant: textHorizontalPadding + bannerHorizontalInset),
+            label.trailingAnchor.constraint(equalTo: banner.trailingAnchor, constant: -(textHorizontalPadding + bannerHorizontalInset)),
+            label.topAnchor.constraint(equalTo: banner.topAnchor, constant: textVerticalPadding + bannerVerticalInset),
+            label.bottomAnchor.constraint(equalTo: banner.bottomAnchor, constant: -(textVerticalPadding + bannerVerticalInset)),
+
+            // Container has a fixed height = plane height; width is driven by
+            // banner+plane content.
+            container.heightAnchor.constraint(equalToConstant: planeSize),
+        ])
+
+        return container
     }
 
     private func bannerText(title: String, startDate: Date?, minutesUntil: Int) -> String {

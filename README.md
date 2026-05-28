@@ -124,3 +124,9 @@ banner text format. After any edit run `./install.sh` again.
 
 Removes the launch agent and the installed `.app`. Calendar permission is
 left in place (revoke it in System Settings if you also want that gone).
+
+## Credits
+
+Plane and banner artwork by [@conniexu444](https://github.com/conniexu444),
+borrowed from [meeting-reminder](https://github.com/conniexu444/meeting-reminder)
+under the MIT License. Full license text in [`art/LICENSE-art.txt`](art/LICENSE-art.txt).
