@@ -4,17 +4,20 @@ import EventKit
 // MARK: - App delegate
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let watcher = CalendarWatcher()
+    private let config: Config
+    private let watcher: CalendarWatcher
     private var overlay: OverlayController?
     private let testMode: Bool
 
     init(testMode: Bool) {
         self.testMode = testMode
+        self.config = Config.load()
+        self.watcher = CalendarWatcher(config: config)
         super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        overlay = OverlayController()
+        overlay = OverlayController(config: config)
 
         if testMode {
             // Show the animation once with dummy data, then quit.

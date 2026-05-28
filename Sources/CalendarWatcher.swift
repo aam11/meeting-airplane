@@ -13,11 +13,11 @@ final class CalendarWatcher {
 
     var onMeetingSoon: ((EKEvent) -> Void)?
 
-    /// How many minutes before the meeting we trigger the animation.
-    var leadMinutes: Int = 5
+    private let config: Config
 
-    /// How often we re-check the calendar.
-    var pollSeconds: TimeInterval = 30
+    init(config: Config) {
+        self.config = config
+    }
 
     func start() {
         requestAccess { [weak self] granted in
@@ -28,7 +28,7 @@ final class CalendarWatcher {
             }
             DispatchQueue.main.async {
                 self.check()
-                self.timer = Timer.scheduledTimer(withTimeInterval: self.pollSeconds, repeats: true) { [weak self] _ in
+                self.timer = Timer.scheduledTimer(withTimeInterval: self.config.pollSeconds, repeats: true) { [weak self] _ in
                     self?.check()
                 }
             }
@@ -68,11 +68,21 @@ final class CalendarWatcher {
             let key = makeKey(for: event)
             if firedEventKeys.contains(key) { continue }
 
-            let minutesUntil = event.startDate.timeIntervalSince(now) / 60.0
-            // Fire if the meeting is upcoming and within the lead window.
-            // (If the app started up with only 3 min until a meeting, we still
-            // fire — better late than missed.)
-            if minutesUntil > 0 && minutesUntil <= Double(leadMinutes) {
+            // Fire when the event start falls inside a band centered on
+            // (now + leadMinutes). triggerBandSeconds=0 reverts to the strict
+            // "fire if 0 < minutesUntil <= leadMinutes" v0.2 behavior.
+            let secondsUntil = event.startDate.timeIntervalSince(now)
+            let leadSeconds = Double(config.leadMinutes) * 60.0
+            let band = config.triggerBandSeconds
+
+            let inBand: Bool
+            if band > 0 {
+                inBand = secondsUntil >= (leadSeconds - band) && secondsUntil <= (leadSeconds + band)
+            } else {
+                inBand = secondsUntil > 0 && secondsUntil <= leadSeconds
+            }
+
+            if inBand {
                 firedEventKeys.insert(key)
                 onMeetingSoon?(event)
             }

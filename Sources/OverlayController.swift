@@ -13,8 +13,13 @@ private final class OverlayPanel: NSPanel {
 /// draw), since custom draw inside layer-backed parents has been flaky on
 /// recent macOS.
 final class OverlayController {
+    private let config: Config
     private var window: NSPanel?
     private var slideTimer: Timer?
+
+    init(config: Config) {
+        self.config = config
+    }
 
     // Soothing pastel palette.
     private let bannerFill = NSColor(calibratedRed: 0.78, green: 0.88, blue: 0.96, alpha: 0.95) // pastel sky blue
@@ -139,8 +144,8 @@ final class OverlayController {
         // Manual 60Hz slide + fade (NSWindow animator ignores duration on macOS 26).
         let startX = startFrame.origin.x
         let endX = screenFrame.maxX
-        let duration: TimeInterval = 6.0
-        let fadeDuration: TimeInterval = 0.6
+        let duration = config.slideDuration
+        let fadeDuration = config.fadeDuration
         let fadeStart = max(0.0, (duration - fadeDuration) / duration)
         let t0 = Date()
         slideTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self, weak w] timer in

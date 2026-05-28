@@ -68,6 +68,37 @@ This plays the animation once with a dummy meeting title, then quits.
 - The plane and banner slide across with `NSAnimationContext`. The window
   closes itself after ~9 seconds.
 
+## Configuration
+
+Runtime settings live in macOS `UserDefaults` under domain
+`com.user.meetingairplane`. No GUI — use the `defaults` CLI:
+
+```bash
+# Slow the plane down to 12 seconds across the screen (default: 6)
+defaults write com.user.meetingairplane slideDuration -float 12
+
+# Fire 10 minutes early instead of 5 (default: 5)
+defaults write com.user.meetingairplane leadMinutes -int 10
+
+# Poll every 60 seconds instead of 30 (default: 30)
+defaults write com.user.meetingairplane pollSeconds -float 60
+
+# Tolerance band around the lead time, in seconds (default: 60)
+# Set to 0 for the strict "fire if event starts within leadMinutes" v0.2 behavior.
+defaults write com.user.meetingairplane triggerBandSeconds -float 60
+
+# Restart the agent to pick up changes
+launchctl kickstart -k "gui/$(id -u)/com.user.meetingairplane"
+```
+
+Out-of-range values clamp to safe limits; missing values use defaults.
+To reset everything:
+
+```bash
+defaults delete com.user.meetingairplane
+launchctl kickstart -k "gui/$(id -u)/com.user.meetingairplane"
+```
+
 ## Tweaks
 
 Open `Sources/CalendarWatcher.swift`:
