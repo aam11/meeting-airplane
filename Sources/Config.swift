@@ -12,7 +12,9 @@ struct Config {
     let triggerBandSeconds: TimeInterval
 
     static func load() -> Config {
-        let d = UserDefaults.standard
+        // Always read from the explicit suite so `--test` runs (direct binary
+        // invocation) and launchd runs (via the bundle) hit the same prefs.
+        let d = UserDefaults(suiteName: "com.user.meetingairplane") ?? UserDefaults.standard
         return Config(
             leadMinutes:        clampInt(d.integer(forKey: "leadMinutes"),        default: 5,  min: 1,  max: 60),
             pollSeconds:        clamp(d.double(forKey: "pollSeconds"),            default: 30, min: 10, max: 300),

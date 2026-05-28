@@ -65,8 +65,10 @@ This plays the animation once with a dummy meeting title, then quits.
 - The overlay is a borderless, transparent, click-through `NSWindow` at
   screensaver level — it draws on top of everything (including full-screen
   apps) and lets your clicks pass through to whatever's underneath.
-- The plane and banner slide across with `NSAnimationContext`. The window
-  closes itself after ~9 seconds.
+- The plane and banner slide across via a manual 60Hz `Timer` updating
+  `setFrameOrigin` (NSWindow's animator ignores duration overrides on recent
+  macOS). The window fades out in the final 0.6s and closes after the slide
+  finishes (~6s by default; configurable via `slideDuration`).
 
 ## Configuration
 
@@ -106,8 +108,10 @@ Open `Sources/CalendarWatcher.swift`:
 - `leadMinutes` — how many minutes before the meeting to fire (default 5).
 - `pollSeconds` — how often to recheck the calendar (default 30).
 
-Open `Sources/PlaneView.swift` to adjust the animation duration, colors, or
-banner text format. After any edit run `./install.sh` again.
+Open `Sources/OverlayController.swift` to adjust the animation, colors, or
+layout. After any edit run `./install.sh` again. For runtime-tunable values
+(durations, polling, lead time), use `defaults write` — see the
+**Configuration** section above.
 
 ## Logs
 
