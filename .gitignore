@@ -1,0 +1,15 @@
+# Build artifacts
+build/
+
+# macOS junk
+.DS_Store
+
+# Editor swap files
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Claude/superpowers memory (keep specs + plans, exclude any local-only state)
+.claude/
