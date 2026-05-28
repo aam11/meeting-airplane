@@ -32,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         watcher.onMeetingSoon = { [weak self] event in
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                let title = event.title ?? "Untitled meeting"
+                let title = self.watcher.displayTitle(for: event)
                 let minutesUntil = max(1, Int(round(event.startDate.timeIntervalSinceNow / 60)))
                 self.overlay?.show(
                     title: title,

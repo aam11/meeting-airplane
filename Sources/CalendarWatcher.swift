@@ -90,4 +90,25 @@ final class CalendarWatcher {
         let id = event.eventIdentifier ?? "unknown"
         return "\(id)|\(event.startDate.timeIntervalSince1970)"
     }
+
+    /// Prefer "Meeting with <names>" when the event has named invitees besides
+    /// the current user; fall back to the event title.
+    func displayTitle(for event: EKEvent) -> String {
+        let fallback = event.title ?? "Untitled meeting"
+
+        let names = (event.attendees ?? [])
+            .filter { !$0.isCurrentUser }
+            .compactMap { participant -> String? in
+                guard let name = participant.name, !name.isEmpty else { return nil }
+                return name
+            }
+
+        guard !names.isEmpty else { return fallback }
+
+        switch names.count {
+        case 1:  return "Meeting with \(names[0])"
+        case 2:  return "Meeting with \(names[0]) and \(names[1])"
+        default: return "Meeting with \(names[0]), \(names[1]) +\(names.count - 2) more"
+        }
+    }
 }

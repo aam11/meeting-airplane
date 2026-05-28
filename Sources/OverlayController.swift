@@ -1,5 +1,11 @@
 import AppKit
 
+/// Non-activating NSPanel — never becomes key/main, so it cannot steal focus.
+private final class OverlayPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
 /// Plane glyph + rounded pastel banner, sliding across the screen.
 ///
 /// Window is transparent — only the plane emoji and the rounded banner show.
@@ -7,7 +13,7 @@ import AppKit
 /// draw), since custom draw inside layer-backed parents has been flaky on
 /// recent macOS.
 final class OverlayController {
-    private var window: NSWindow?
+    private var window: NSPanel?
     private var slideTimer: Timer?
 
     // Soothing pastel palette.
@@ -45,18 +51,19 @@ final class OverlayController {
             height: windowHeight
         )
 
-        let w = NSWindow(
+        let w = OverlayPanel(
             contentRect: startFrame,
-            styleMask: .borderless,
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         w.isOpaque = false
         w.backgroundColor = .clear
         w.hasShadow = false
-        // .screenSaver draws over full-screen apps and the menu bar. If macOS
-        // suppresses it on your build, fall back to .popUpMenu.
-        w.level = .screenSaver
+        // Above-everything level. Higher than .screenSaver so it survives
+        // Mission Control/screensaver transitions. Fall back to .screenSaver
+        // if a future macOS suppresses this.
+        w.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)) + 1)
         w.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         // Click-through: mouse events fall to whatever's underneath.
         w.ignoresMouseEvents = true
@@ -129,19 +136,29 @@ final class OverlayController {
 
         window = w
 
-        // Manual 60Hz slide (NSWindow animator ignores duration on macOS 26).
+        // Manual 60Hz slide + fade (NSWindow animator ignores duration on macOS 26).
         let startX = startFrame.origin.x
         let endX = screenFrame.maxX
         let duration: TimeInterval = 6.0
+        let fadeDuration: TimeInterval = 0.6
+        let fadeStart = max(0.0, (duration - fadeDuration) / duration)
         let t0 = Date()
         slideTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self, weak w] timer in
             guard let w = w else {
                 timer.invalidate()
                 return
             }
-            let progress = min(1.0, Date().timeIntervalSince(t0) / duration)
+            let elapsed = Date().timeIntervalSince(t0)
+            let progress = min(1.0, elapsed / duration)
             let x = startX + (endX - startX) * CGFloat(progress)
             w.setFrameOrigin(NSPoint(x: x, y: yTop))
+
+            // Fade alpha 1.0 → 0.0 across the final `fadeDuration` seconds.
+            if progress >= fadeStart {
+                let fadeProgress = (progress - fadeStart) / max(0.0001, 1.0 - fadeStart)
+                w.alphaValue = CGFloat(max(0.0, 1.0 - fadeProgress))
+            }
+
             if progress >= 1.0 {
                 timer.invalidate()
                 NSLog("[MeetingAirplane] slide done")
